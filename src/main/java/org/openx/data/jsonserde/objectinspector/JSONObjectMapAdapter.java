@@ -17,8 +17,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import com.alibaba.fastjson.JSONObject;
-import com.alibaba.fastjson.JSONException;
+import org.openx.data.jsonserde.json.JSONException;
+import org.openx.data.jsonserde.json.JSONObject;
 
 /**
  * JSONObject is technically different from a map, since a json object
@@ -60,7 +60,7 @@ public class JSONObjectMapAdapter implements Map {
 
     @Override
     public int size() {
-        return jsonObject.size();
+        return jsonObject.length();
     }
 
     @Override
@@ -71,7 +71,7 @@ public class JSONObjectMapAdapter implements Map {
     protected final void initialize() {
         if(cache==null) cache = new HashMap();
         
-        for(Iterator<String> i = jsonObject.keySet().iterator(); i.hasNext(); ) {
+        for(Iterator<String> i = jsonObject.keys(); i.hasNext(); ) {
             String o = i.next();
             try {
                 cache.put(o, safeGet(o));
@@ -91,7 +91,7 @@ public class JSONObjectMapAdapter implements Map {
     private Object safeGet(String s) throws JSONException {
 	if(s == null) return null;
 	Object obj = jsonObject.get(s);
-	if(null == obj) {
+	if(JSONObject.NULL.equals(obj)) {
 	    return null;
 	} else {
 	    return obj;

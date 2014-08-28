@@ -16,57 +16,60 @@ import java.util.Map;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StandardMapObjectInspector;
 import org.apache.hadoop.io.Text;
-import com.alibaba.fastjson.JSONObject;
-import com.alibaba.fastjson.JSONException;
+import org.openx.data.jsonserde.json.JSONException;
+import org.openx.data.jsonserde.json.JSONObject;
 
 /**
- * 
+ *
  * @author rcongiu
  */
 public class JsonMapObjectInspector extends StandardMapObjectInspector {
+  
+    public JsonMapObjectInspector(ObjectInspector mapKeyObjectInspector, 
+            ObjectInspector mapValueObjectInspector) {
+        super(mapKeyObjectInspector, mapValueObjectInspector);
+    }
 
-	public JsonMapObjectInspector(ObjectInspector mapKeyObjectInspector,
-			ObjectInspector mapValueObjectInspector) {
-		super(mapKeyObjectInspector, mapValueObjectInspector);
-	}
 
-	@Override
-	public Map<?, ?> getMap(Object data) {
-		if (JsonObjectInspectorUtils.checkObject(data) == null) {
-			return null;
-		}
+  @Override
+  public Map<?, ?> getMap(Object data) {
+    if (JsonObjectInspectorUtils.checkObject(data) == null) {
+      return null;
+    }
+    
+    JSONObject jObj = (JSONObject) data;
+    
+    return new JSONObjectMapAdapter(jObj);
+  }
 
-		JSONObject jObj = (JSONObject) data;
 
-		return new JSONObjectMapAdapter(jObj);
-	}
+  
+  @Override
+  public int getMapSize(Object data) {
+    if (JsonObjectInspectorUtils.checkObject(data) == null) {
+      return -1;
+    }
+     JSONObject jObj = (JSONObject) data;
+    return jObj.length();
+  }
 
-	@Override
-	public int getMapSize(Object data) {
-		if (JsonObjectInspectorUtils.checkObject(data) == null) {
-			return -1;
-		}
-		JSONObject jObj = (JSONObject) data;
-		return jObj.size();
-	}
-
-	@Override
-	public Object getMapValueElement(Object data, Object key) {
-		if (JsonObjectInspectorUtils.checkObject(data) == null) {
-			return -1;
-		}
-
-		JSONObject jObj = (JSONObject) data;
-		try {
-			Object obj = jObj.get(key.toString());
-			if (null == obj) {
-				return null;
-			} else {
-				return obj;
-			}
-		} catch (JSONException ex) {
-			// key does not exists -> like null
-			return null;
-		}
-	}
+  @Override
+  public Object getMapValueElement(Object data, Object key) {
+    if (JsonObjectInspectorUtils.checkObject(data) == null) {
+      return -1;
+    }
+    
+     JSONObject jObj = (JSONObject) data;
+        try {
+            Object obj = jObj.get(key.toString());
+            if(JSONObject.NULL == obj) {
+                return null;
+            } else {
+                return obj;
+            }
+        } catch (JSONException ex) {
+            // key does not exists -> like null
+            return null;
+        }
+  }   
 }

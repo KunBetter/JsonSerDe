@@ -16,135 +16,130 @@ import java.util.List;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
-import com.alibaba.fastjson.JSONException;
+import org.openx.data.jsonserde.json.JSONArray;
+import org.openx.data.jsonserde.json.JSONException;
+import org.openx.data.jsonserde.json.JSONObject;
 
 /**
- * This Object Inspector is used to look into a JSonObject object. We couldn't
- * use StandardStructObjectInspector since that expects something that can be
- * cast to an Array<Object>.
- * 
+ * This Object Inspector is used to look into a JSonObject object.
+ * We couldn't use StandardStructObjectInspector since that expects 
+ * something that can be cast to an Array<Object>.
  * @author rcongiu
  */
 public class JsonStructObjectInspector extends StandardStructObjectInspector {
-	JsonStructOIOptions options = null;
+    JsonStructOIOptions options = null;
 
-	/*
-	 * public JsonStructObjectInspector(List<String> structFieldNames,
-	 * List<ObjectInspector> structFieldObjectInspectors) {
-	 * super(structFieldNames, structFieldObjectInspectors); }
-	 */
+  /*  
+    public JsonStructObjectInspector(List<String> structFieldNames,
+            List<ObjectInspector> structFieldObjectInspectors) {
+        super(structFieldNames, structFieldObjectInspectors);
+    } */
+    
+      public JsonStructObjectInspector(List<String> structFieldNames,
+            List<ObjectInspector> structFieldObjectInspectors,JsonStructOIOptions opts) {
+        super(structFieldNames, structFieldObjectInspectors);   
+        
+        options = opts;
+    }
 
-	public JsonStructObjectInspector(List<String> structFieldNames,
-			List<ObjectInspector> structFieldObjectInspectors,
-			JsonStructOIOptions opts) {
-		super(structFieldNames, structFieldObjectInspectors);
+      /**
+       * Extract the data from the requested field.
+       * 
+       * @param data
+       * @param fieldRef
+       * @return 
+       */
+    @Override
+    public Object getStructFieldData(Object data, StructField fieldRef) {
+        if (JsonObjectInspectorUtils.checkObject(data) == null) {
+            return null;
+        }
+        
+        if( data instanceof JSONObject) {
+            return getStructFieldDataFromJsonObject((JSONObject) data, fieldRef );
+        } if (data instanceof List) {
+            // somehow we have the object parsed already
+            return getStructFieldDataFromList((List) data, fieldRef );
+        } else if (data instanceof JSONArray) {
+            return getStructFieldDataFromList(((JSONArray) data).getAsArrayList(), fieldRef );
+        } else {
+            throw new Error("Data is not JSONObject  but " + data.getClass().getCanonicalName() +
+                    " with value " + data.toString()) ;
+        } 
+    }
+    
+    /**
+     * retrieves data assuming it's in a list, usually during serialization
+     * @param data
+     * @param fieldRef
+     * @return 
+     */
+    public Object getStructFieldDataFromList(List data, StructField fieldRef ) {
+       int idx = fields.indexOf(fieldRef);
+       if(idx <0 || idx >= data.size()) {
+           return null;
+       } else {
+           return data.get(idx);
+       }
+    }
+    
 
-		options = opts;
-	}
+    
+    public Object getStructFieldDataFromJsonObject(JSONObject data, StructField fieldRef ) {
+        if (JsonObjectInspectorUtils.checkObject(data) == null) {
+            return null;
+        }
+        
+        MyField f = (MyField) fieldRef;
 
-	/**
-	 * Extract the data from the requested field.
-	 * 
-	 * @param data
-	 * @param fieldRef
-	 * @return
-	 */
-	@Override
-	public Object getStructFieldData(Object data, StructField fieldRef) {
-		if (JsonObjectInspectorUtils.checkObject(data) == null) {
-			return null;
-		}
+        int fieldID = f.getFieldID();
+        assert (fieldID >= 0 && fieldID < fields.size());
 
-		if (data instanceof JSONObject) {
-			return getStructFieldDataFromJsonObject((JSONObject) data, fieldRef);
-		}
-		if (data instanceof List) {
-			// somehow we have the object parsed already
-			return getStructFieldDataFromList((List) data, fieldRef);
-		} else if (data instanceof JSONArray) {
-			return getStructFieldDataFromList(((JSONArray) data), fieldRef);
-		} else {
-			throw new Error("Data is not JSONObject  but "
-					+ data.getClass().getCanonicalName() + " with value "
-					+ data.toString());
-		}
-	}
+        Object fieldData = null;
+        
+        try {
+            if (data.has(getJsonField(fieldRef))) {
+               fieldData = data.get(getJsonField(fieldRef));
+               if (fieldData == JSONObject.NULL) fieldData = null;
+            } 
+        } catch (JSONException ex) {
+            // if key does not exist
+        }
+        return fieldData;
+    }
+    
+    
 
-	/**
-	 * retrieves data assuming it's in a list, usually during serialization
-	 * 
-	 * @param data
-	 * @param fieldRef
-	 * @return
-	 */
-	public Object getStructFieldDataFromList(List data, StructField fieldRef) {
-		int idx = fields.indexOf(fieldRef);
-		if (idx < 0 || idx >= data.size()) {
-			return null;
-		} else {
-			return data.get(idx);
-		}
-	}
+    
+    /**
+     * called to map from hive to json
+     * @param fr
+     * @return 
+     */
+    protected String getJsonField(StructField fr) {
+        if(options.getMappings() != null && options.getMappings().containsKey(fr.getFieldName())) {
+            return options.getMappings().get(fr.getFieldName());
+        } else {
+            return fr.getFieldName();
+        }
+    }
+    
+    List<Object> values = new ArrayList<Object>();
+    @Override
+    public List<Object> getStructFieldsDataAsList(Object o) {
+	if (JsonObjectInspectorUtils.checkObject(o) == null) {
+            return null;
+        }
+        JSONObject jObj = (JSONObject) o;
+        values.clear();
 
-	public Object getStructFieldDataFromJsonObject(JSONObject data,
-			StructField fieldRef) {
-		if (JsonObjectInspectorUtils.checkObject(data) == null) {
-			return null;
-		}
-
-		MyField f = (MyField) fieldRef;
-
-		int fieldID = f.getFieldID();
-		assert (fieldID >= 0 && fieldID < fields.size());
-
-		Object fieldData = null;
-
-		try {
-			if (data.containsKey(getJsonField(fieldRef))) {
-				fieldData = data.get(getJsonField(fieldRef));
-				if (fieldData == null)
-					fieldData = null;
-			}
-		} catch (JSONException ex) {
-			// if key does not exist
-		}
-		return fieldData;
-	}
-
-	/**
-	 * called to map from hive to json
-	 * 
-	 * @param fr
-	 * @return
-	 */
-	protected String getJsonField(StructField fr) {
-		if (options.getMappings() != null
-				&& options.getMappings().containsKey(fr.getFieldName())) {
-			return options.getMappings().get(fr.getFieldName());
-		} else {
-			return fr.getFieldName();
-		}
-	}
-
-	List<Object> values = new ArrayList<Object>();
-
-	@Override
-	public List<Object> getStructFieldsDataAsList(Object o) {
-		if (JsonObjectInspectorUtils.checkObject(o) == null) {
-			return null;
-		}
-		JSONObject jObj = (JSONObject) o;
-		values.clear();
-
-		for (int i = 0; i < fields.size(); i++) {
-			if (jObj.containsKey(getJsonField(fields.get(i)))) {
-				values.add(getStructFieldData(o, fields.get(i)));
-			} else {
-				values.add(null);
-			}
-		}
-		return values;
-	}
+        for (int i = 0; i < fields.size(); i++) {
+                if (jObj.has(getJsonField(fields.get(i)))){
+                    values.add(getStructFieldData(o, fields.get(i)));
+                } else {
+                    values.add(null);
+                }
+        }
+        return values;
+    }
 }
